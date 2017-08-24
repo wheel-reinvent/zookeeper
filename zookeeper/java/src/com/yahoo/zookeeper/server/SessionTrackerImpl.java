@@ -181,6 +181,7 @@ public class SessionTrackerImpl extends Thread implements SessionTracker {
         return nextSessionId++;
     }
 
+    // 根据sessionId创建新的session并设置到sessionById Map中
     synchronized public void addSession(long id, int sessionTimeout) {
         sessionsWithTimeout.put(id, sessionTimeout);
         if (sessionsById.get(id) == null) {

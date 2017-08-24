@@ -457,6 +457,7 @@ public class DataTree {
         }
     }
 
+    // 反序列化dataTree从输入流中
     public void deserialize(InputArchive ia, String tag) throws IOException {
         nodes.clear();
         String path = ia.readString("path");

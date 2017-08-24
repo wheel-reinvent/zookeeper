@@ -132,9 +132,8 @@ public class ZooKeeperServer implements SessionExpirer {
     /**
      * Creates a ZooKeeperServer instance. It sets everything up, but doesn't
      * actually start listening for clients until run() is invoked.
-     * 
-     * @param dataDir
-     *                the directory to put the data
+     *
+     * @param dataDir the directory to put the data
      * @throws IOException
      */
     public ZooKeeperServer(File dataDir, File dataLogDir, int tickTime) throws IOException {
@@ -184,7 +183,7 @@ public class ZooKeeperServer implements SessionExpirer {
         long zxid = getZxidFromName(f.getName(), "snapshot");
         if (zxid == -1)
             return -1;
-    
+
         // Check for a valid snapshot
         RandomAccessFile raf = new RandomAccessFile(f, "r");
         try {
@@ -202,11 +201,11 @@ public class ZooKeeperServer implements SessionExpirer {
         } finally {
             raf.close();
         }
-    
+
         return zxid;
     }
-    
-    static File[] getLogFiles(File logDir,long snapshotZxid){
+
+    static File[] getLogFiles(File logDir, long snapshotZxid) {
         List<File> files = Arrays.asList(logDir.listFiles());
         Collections.sort(files, new Comparator<File>() {
             public int compare(File o1, File o2) {
@@ -227,7 +226,7 @@ public class ZooKeeperServer implements SessionExpirer {
                 logZxid = fzxid;
             }
         }
-        List<File> v=new ArrayList<File>(5);
+        List<File> v = new ArrayList<File>(5);
         // Apply the logs
         for (File f : files) {
             long fzxid = getZxidFromName(f.getName(), "log");
@@ -238,10 +237,11 @@ public class ZooKeeperServer implements SessionExpirer {
         }
         return v.toArray(new File[0]);
     }
-    
+
     public void loadData() throws IOException, FileNotFoundException,
             SyncFailedException, InterruptedException {
         long highestZxid = 0;
+        // 遍历目录中的所有文件从快照中读取最大的zxid
         for (File f : dataDir.listFiles()) {
             long zxid = isValidSnapshot(f);
             if (zxid == -1) {
@@ -254,16 +254,19 @@ public class ZooKeeperServer implements SessionExpirer {
         }
         // Restore sessions and data
         // Find the latest snapshot
+        // 找出最新的快照
         File snapshot = new File(dataDir, "snapshot."
                 + Long.toHexString(highestZxid));
         if (snapshot.exists()) {
             long snapShotZxid = highestZxid;
             ZooLog.logWarn("Processing snapshot: " + snapshot);
             FileInputStream fis = new FileInputStream(snapshot);
+            // 解析快照中的信息
             loadData(BinaryInputArchive.getArchive(fis));
             fis.close();
             dataTree.lastProcessedZxid = highestZxid;
-            File[] files=getLogFiles(dataLogDir,snapShotZxid);
+            // 回放日志目录下快照Zxid对应的日志文件列表
+            File[] files = getLogFiles(dataLogDir, snapShotZxid);
             // Apply the logs
             for (File f : files) {
                 ZooLog.logWarn("Processing log file: " + f);
@@ -271,12 +274,15 @@ public class ZooKeeperServer implements SessionExpirer {
                 highestZxid = playLog(BinaryInputArchive.getArchive(logStream));
                 logStream.close();
             }
+            // 设置hzxid
             hzxid = highestZxid;
         } else {
+            // 快照不存在 初始化会话的Map为空Map并创建dataTree的实例
             sessionsWithTimeouts = new ConcurrentHashMap<Long, Integer>();
             dataTree = new DataTree();
         }
         // Clean up dead sessions
+        // 清理会话(dataTree中存在但是在sessionsWithTimeouts中不存在的会话)
         LinkedList<Long> deadSessions = new LinkedList<Long>();
         for (long session : dataTree.getSessions()) {
             if (sessionsWithTimeouts.get(session) == null) {
@@ -288,9 +294,11 @@ public class ZooKeeperServer implements SessionExpirer {
             killSession(session);
         }
         // Make a clean snapshot
+        // 重新做一次干净的快照
         snapshot();
     }
 
+    // 解析快照中的dataTree信息以及会话和会话的过期时间
     public void loadData(InputArchive ia) throws IOException {
         sessionsWithTimeouts = new ConcurrentHashMap<Long, Integer>();
         dataTree = new DataTree();
@@ -325,34 +333,34 @@ public class ZooKeeperServer implements SessionExpirer {
                     throw new EOFException();
                 }
                 if (hdr.getZxid() <= highestZxid && highestZxid != 0) {
-                    ZooLog.logError(highestZxid + "(higestZxid) >= "
+                    ZooLog.logError(highestZxid + "(highestZxid) >= "
                             + hdr.getZxid() + "(next log) for type "
                             + hdr.getType());
                 } else {
                     highestZxid = hdr.getZxid();
                 }
                 switch (hdr.getType()) {
-                case OpCode.createSession:
-                    sessionsWithTimeouts.put(hdr.getClientId(),
-                            ((CreateSessionTxn) txn).getTimeOut());
-                    ZooLog.logTextTraceMessage(
-                            "playLog --- create session in log: "
-                                    + hdr.getClientId() + " with timeout: "
-                                    + ((CreateSessionTxn) txn).getTimeOut(),
-                            ZooLog.SESSION_TRACE_MASK);
-                    // give dataTree a chance to sync its lastProcessedZxid
-                    dataTree.processTxn(hdr, txn);
-                    break;
-                case OpCode.closeSession:
-                    sessionsWithTimeouts.remove(hdr.getClientId());
-                    ZooLog.logTextTraceMessage(
-                            "playLog --- close session in log: "
-                                    + hdr.getClientId(),
-                            ZooLog.SESSION_TRACE_MASK);
-                    dataTree.processTxn(hdr, txn);
-                    break;
-                default:
-                    dataTree.processTxn(hdr, txn);
+                    case OpCode.createSession:
+                        sessionsWithTimeouts.put(hdr.getClientId(),
+                                ((CreateSessionTxn) txn).getTimeOut());
+                        ZooLog.logTextTraceMessage(
+                                "playLog --- create session in log: "
+                                        + hdr.getClientId() + " with timeout: "
+                                        + ((CreateSessionTxn) txn).getTimeOut(),
+                                ZooLog.SESSION_TRACE_MASK);
+                        // give dataTree a chance to sync its lastProcessedZxid
+                        dataTree.processTxn(hdr, txn);
+                        break;
+                    case OpCode.closeSession:
+                        sessionsWithTimeouts.remove(hdr.getClientId());
+                        ZooLog.logTextTraceMessage(
+                                "playLog --- close session in log: "
+                                        + hdr.getClientId(),
+                                ZooLog.SESSION_TRACE_MASK);
+                        dataTree.processTxn(hdr, txn);
+                        break;
+                    default:
+                        dataTree.processTxn(hdr, txn);
                 }
             }
         } catch (EOFException e) {
@@ -365,28 +373,28 @@ public class ZooKeeperServer implements SessionExpirer {
         hdr.deserialize(ia, "hdr");
         Record txn = null;
         switch (hdr.getType()) {
-        case OpCode.createSession:
-            // This isn't really an error txn; it just has the same
-            // format. The error represents the timeout
-            txn = new CreateSessionTxn();
-            break;
-        case OpCode.closeSession:
-            return null;
-        case OpCode.create:
-            txn = new CreateTxn();
-            break;
-        case OpCode.delete:
-            txn = new DeleteTxn();
-            break;
-        case OpCode.setData:
-            txn = new SetDataTxn();
-            break;
-        case OpCode.setACL:
-            txn = new SetACLTxn();
-            break;
-        case OpCode.error:
-            txn = new ErrorTxn();
-            break;
+            case OpCode.createSession:
+                // This isn't really an error txn; it just has the same
+                // format. The error represents the timeout
+                txn = new CreateSessionTxn();
+                break;
+            case OpCode.closeSession:
+                return null;
+            case OpCode.create:
+                txn = new CreateTxn();
+                break;
+            case OpCode.delete:
+                txn = new DeleteTxn();
+                break;
+            case OpCode.setData:
+                txn = new SetDataTxn();
+                break;
+            case OpCode.setACL:
+                txn = new SetACLTxn();
+                break;
+            case OpCode.error:
+                txn = new ErrorTxn();
+                break;
         }
         if (txn != null) {
             txn.deserialize(ia, "txn");
@@ -496,11 +504,15 @@ public class ZooKeeperServer implements SessionExpirer {
     }
 
     public void startup() throws IOException, InterruptedException {
+        // 在目录中找出快照,并根据快照初始化dataTree
         if (dataTree == null) {
             loadData();
         }
+        // 创建会话追踪器
         createSessionTracker();
+        // 设置请求处理器
         setupRequestProcessors();
+        // 设置Server的running状态为true
         running = true;
         synchronized (this) {
             notifyAll();
@@ -566,7 +578,7 @@ public class ZooKeeperServer implements SessionExpirer {
      */
     static class ChangeRecord {
         ChangeRecord(long zxid, String path, Stat stat, int childCount,
-                ArrayList<ACL> acl) {
+                     ArrayList<ACL> acl) {
             this.zxid = zxid;
             this.path = path;
             this.stat = stat;
@@ -625,7 +637,7 @@ public class ZooKeeperServer implements SessionExpirer {
     }
 
     protected void revalidateSession(ServerCnxn cnxn, long sessionId,
-            int sessionTimeout) throws IOException, InterruptedException {
+                                     int sessionTimeout) throws IOException, InterruptedException {
         boolean rc = sessionTracker.touchSession(sessionId, sessionTimeout);
         ZooLog.logTextTraceMessage("Session " + sessionId + " is valid: " + rc,
                 ZooLog.SESSION_TRACE_MASK);
@@ -633,7 +645,7 @@ public class ZooKeeperServer implements SessionExpirer {
     }
 
     public void reopenSession(ServerCnxn cnxn, long sessionId, byte[] passwd,
-            int sessionTimeout) throws IOException, InterruptedException {
+                              int sessionTimeout) throws IOException, InterruptedException {
         if (!checkPasswd(sessionId, passwd)) {
             cnxn.finishSessionInit(false);
         } else {
@@ -657,7 +669,7 @@ public class ZooKeeperServer implements SessionExpirer {
      * @param bb
      */
     public void submitRequest(ServerCnxn cnxn, long sessionId, int type,
-            int xid, ByteBuffer bb, ArrayList<Id> authInfo) {
+                              int xid, ByteBuffer bb, ArrayList<Id> authInfo) {
         if (firstProcessor == null) {
             synchronized (this) {
                 try {

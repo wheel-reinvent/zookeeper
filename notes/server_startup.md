@@ -19,3 +19,20 @@
  - 创建dataTree的实例
 4. 清理会话(dataTree中存在但是在sessionsWithTimeouts中不存在的会话)
 5. 设置 dataTree.initialized 为 true
+6. 重新做一次干净的快照
+
+### 2. 创建会话追踪器
+1. 调用 SessionTrackerImpl 的构造函数创建实例 sessionTracker
+ - 设置线程名称 为 SessionTracker
+ - 设置 expirer 为 ZookeeperServer 实例本身
+ - 设置 expirationInterval
+ - 设置 sessionsWithTimeout
+ - 设置 nextExpirationTime
+ - 遍历 nextExpirationTime 添加session
+ - 启动线程
+ 
+### 3. 设置请求处理器
+1. 创建 FinalRequestProcessor 的实例 finalProcessor
+2. 创建 SyncRequestProcessor 的实例 syncProcessor
+3. 创建 PrepRequestProcessor 实例并赋值给 firstProcessor 
+ 

@@ -1,0 +1,7 @@
+.idea/
+.revision/
+build/
+
+*.jar
+
+generated/
